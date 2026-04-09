@@ -118,6 +118,31 @@ class MiniNPUSimulator:
             return "X"
         
         return label # 그 외의 경우 (예: 숫자인 경우 등) 그대로 반환
+    
+    def mac_operation(self, matrix_a, matrix_b):
+        """
+        요구사항: 입력 패턴과 필터를 위치별로 곱하고 모두 더하는 연산 직접 구현
+        """
+        # matrix_a.data의 길이를 측정하여 N을 구합니다.
+        n = len(matrix_a.data)
+        
+        # 두 행렬의 크기가 같은지 확인
+        if n != len(matrix_b.data):
+            return 0.0
+        
+        total_sum = 0.0
+        
+        # 이중 반복문으로 모든 원소 순회
+        for r in range(n):
+            for c in range(n):
+                # get_value 메서드를 사용하여 값을 가져옴
+                val_a = matrix_a.get_value(r, c)
+                val_b = matrix_b.get_value(r, c)
+                
+                # 곱해서 더하기
+                total_sum += (val_a * val_b)
+        
+        return float(total_sum)
 
     def run_mode_1(self):
         """모드 1의 전체 흐름 제어"""
@@ -198,21 +223,22 @@ class MiniNPUSimulator:
                 print(f"정보: 기대값(Expected) -> {standard_expected}")
                 
                 # 6. MAC 연산 수행 및 결과 도출
-                # (가정: simulator 내부에 mac_operation 메서드가 있다고 가정합니다)
                 score = self.mac_operation(f_matrix, p_matrix)
                 
-                # 점수에 따라 결과 라벨 결정 (예: 0보다 크면 해당 모양으로 판정)
-                # 이 로직은 과제의 상세 기준에 따라 조정하세요.
-                actual_result = standard_label if score > 0 else "Unknown"
+                # [수정된 부분] 7. 결과 판정 
+                # 필터 자체가 standard_label이므로, 
+                # 여기서는 '연산 결과(score)가 0보다 크면 해당 모양인 것으로 간주'하는 로직을 예시로 듭니다.
+                # (과제 기준에 따라 score > 10.0 등으로 변경 가능)
+                predicted_label = standard_label if score > 0 else "Unknown"
 
-                # 7. PASS/FAIL 판정 및 출력 (표준 라벨 기준)
-                if actual_result == standard_expected:
-                    result_status = "PASS"
+                # 8. PASS/FAIL 비교 및 출력
+                if predicted_label == standard_expected:
+                    status = "PASS"
                 else:
-                    result_status = "FAIL"
+                    status = "FAIL"
 
-                print(f"[{result_status}] 연산 스코어: {score:.2f}")
-                print(f"결과 라벨: {actual_result} | 기대 라벨: {standard_expected}")
+                print(f"[{status}] MAC Score: {score:.2f}")
+                print(f"판정 결과: {predicted_label} | 기대값: {standard_expected}")
                 
             except (ValueError, IndexError) as e:
                 print(f"FAIL: 데이터 구조 오류 ({e})")
