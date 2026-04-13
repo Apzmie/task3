@@ -4,6 +4,9 @@ import re
 import os
 
 
+# -----------------------------
+# Matrix 클래스
+# -----------------------------
 class Matrix:
     def __init__(self, size):
         self.size = size
@@ -16,6 +19,9 @@ class Matrix:
         return self.data[r][c]
 
 
+# -----------------------------
+# Mini NPU Simulator
+# -----------------------------
 class MiniNPUSimulator:
     def __init__(self):
         self.epsilon = 1e-9
@@ -49,20 +55,22 @@ class MiniNPUSimulator:
                 "x_25": x(25)
             },
             "patterns": {
-                "cross_5_1": {"input": cross(5), "expected": "+"},
-                "x_5_1": {"input": x(5), "expected": "x"},
-                "cross_13_1": {"input": cross(13), "expected": "cross"},
-                "x_13_1": {"input": x(13), "expected": "x"},
-                "cross_25_1": {"input": cross(25), "expected": "+"},
-                "x_25_1": {"input": x(25), "expected": "+"},
+                "size_5_1": {"input": cross(5), "expected": "+"},
+                "size_5_2": {"input": x(5), "expected": "x"},
+                "size_13_1": {"input": cross(13), "expected": "cross"},
+                "size_13_2": {"input": x(13), "expected": "x"},
+                "size_25_1": {"input": cross(25), "expected": "+"},
+                "size_25_2": {"input": x(25), "expected": "+"},
             }
         }
 
         with open("data.json", "w") as f:
             json.dump(data, f, indent=2)
 
-        print("[알림] data.json 자동 생성 완료")
+        print("[알림] data.json 생성 완료")
 
+    # -----------------------------
+    # 라벨 정규화
     # -----------------------------
     def normalize_label(self, label):
         label = str(label).lower().strip()
@@ -73,6 +81,8 @@ class MiniNPUSimulator:
         return label
 
     # -----------------------------
+    # MAC 연산
+    # -----------------------------
     def mac_operation(self, m1, m2):
         total = 0.0
         for i in range(m1.size):
@@ -81,13 +91,17 @@ class MiniNPUSimulator:
         return total
 
     # -----------------------------
-    def measure_time(self, m1, m2, repeat=10):
+    # 시간 측정
+    # -----------------------------
+    def measure_time(self, func, repeat=10):
         start = time.time()
         for _ in range(repeat):
-            self.mac_operation(m1, m2)
+            func()
         end = time.time()
         return ((end - start) / repeat) * 1000
 
+    # -----------------------------
+    # Matrix 생성
     # -----------------------------
     def build_matrix(self, raw, n):
         m = Matrix(n)
@@ -97,22 +111,92 @@ class MiniNPUSimulator:
         return m
 
     # -----------------------------
+    # 사용자 입력
+    # -----------------------------
+    def input_matrix(self, name, size=3):
+        print(f"\n{name} ({size}줄 입력, 공백 구분)")
+
+        m = Matrix(size)
+
+        for i in range(size):
+            while True:
+                try:
+                    row = input().strip().split()
+                    if len(row) != size:
+                        raise ValueError
+
+                    for j in range(size):
+                        m.set_value(i, j, float(row[j]))
+                    break
+                except:
+                    print(f"입력 오류: {size}개의 숫자를 입력하세요.")
+
+        return m
+
+    # -----------------------------
+    # 모드 1 (사용자 입력)
+    # -----------------------------
+    def run_mode1(self):
+        print("\n=== 사용자 입력 모드 (3x3) ===")
+
+        filter_a = self.input_matrix("필터 A")
+        filter_b = self.input_matrix("필터 B")
+        pattern = self.input_matrix("패턴")
+
+        def mac_pair():
+            a = self.mac_operation(filter_a, pattern)
+            b = self.mac_operation(filter_b, pattern)
+            return a, b
+
+        # 시간 측정
+        start = time.time()
+        for _ in range(10):
+            a_score, b_score = mac_pair()
+        end = time.time()
+
+        avg_time = ((end - start) / 10) * 1000
+
+        # 판정
+        if abs(a_score - b_score) < self.epsilon:
+            result = "UNDECIDED"
+        elif a_score > b_score:
+            result = "A"
+        else:
+            result = "B"
+
+        print("\n[결과]")
+        print(f"A 점수: {a_score}")
+        print(f"B 점수: {b_score}")
+        print(f"연산 시간(ms): {avg_time:.6f}")
+        print(f"판정: {result}")
+
+    # -----------------------------
+    # 성능 분석
+    # -----------------------------
     def performance(self, filters):
         print("\n[성능 분석]")
-        print("크기\t시간(ms)\t연산수")
+        print("크기\t평균 시간(ms)\t연산 수(N^2)")
 
-        for n in [5, 13, 25]:
-            key = f"cross_{n}"
-            if key not in filters:
-                continue
+        for n in [3, 5, 13, 25]:
+            if n == 3:
+                # 더미 3x3
+                m = Matrix(3)
+                for i in range(3):
+                    for j in range(3):
+                        m.set_value(i, j, 1.0)
+            else:
+                key = f"cross_{n}"
+                if key not in filters:
+                    continue
+                m = self.build_matrix(filters[key], n)
 
-            m = self.build_matrix(filters[key], n)
-            t = self.measure_time(m, m)
-
+            t = self.measure_time(lambda: self.mac_operation(m, m))
             print(f"{n}x{n}\t{t:.6f}\t{n*n}")
 
     # -----------------------------
-    def run(self):
+    # 모드 2 (JSON 분석)
+    # -----------------------------
+    def run_mode2(self):
         if not os.path.exists("data.json"):
             self.create_json()
 
@@ -131,7 +215,6 @@ class MiniNPUSimulator:
             total += 1
             print(f"\n--- {key} ---")
 
-            # 크기 추출
             match = re.search(r'\d+', key)
             if not match:
                 print("FAIL: 키 파싱 실패")
@@ -141,7 +224,6 @@ class MiniNPUSimulator:
 
             n = int(match.group())
 
-            # 필터 존재 확인
             if f"cross_{n}" not in filters or f"x_{n}" not in filters:
                 print("FAIL: 필터 없음")
                 failed += 1
@@ -151,7 +233,6 @@ class MiniNPUSimulator:
             pattern_raw = content.get("input", [])
             expected = self.normalize_label(content.get("expected"))
 
-            # 크기 검증
             if len(pattern_raw) != n:
                 print("FAIL: 크기 불일치")
                 failed += 1
@@ -162,17 +243,15 @@ class MiniNPUSimulator:
                 cross = self.build_matrix(filters[f"cross_{n}"], n)
                 x = self.build_matrix(filters[f"x_{n}"], n)
                 p = self.build_matrix(pattern_raw, n)
-            except Exception as e:
-                print(f"FAIL: 데이터 오류 ({e})")
+            except:
+                print("FAIL: 데이터 오류")
                 failed += 1
-                fail_list.append((key, "데이터 구조 오류"))
+                fail_list.append((key, "데이터 오류"))
                 continue
 
-            # MAC 연산
             cs = self.mac_operation(cross, p)
             xs = self.mac_operation(x, p)
 
-            # epsilon 비교
             if abs(cs - xs) < self.epsilon:
                 pred = "UNDECIDED"
             elif cs > xs:
@@ -180,7 +259,6 @@ class MiniNPUSimulator:
             else:
                 pred = "X"
 
-            # PASS / FAIL
             if pred == expected:
                 status = "PASS"
                 passed += 1
@@ -205,9 +283,26 @@ class MiniNPUSimulator:
             for case, reason in fail_list:
                 print(f"- {case}: {reason}")
 
+    # -----------------------------
+    # 실행
+    # -----------------------------
+    def run(self):
+        print("=== Mini NPU Simulator ===")
+        print("1. 사용자 입력 (3x3)")
+        print("2. data.json 분석")
+
+        choice = input("선택: ").strip()
+
+        if choice == '1':
+            self.run_mode1()
+        elif choice == '2':
+            self.run_mode2()
+        else:
+            print("잘못된 입력입니다.")
+
 
 # -----------------------------
-# 실행
+# main
 # -----------------------------
 if __name__ == "__main__":
     sim = MiniNPUSimulator()
