@@ -215,16 +215,16 @@ class MiniNPUSimulator:
             total += 1
             print(f"\n--- {key} ---")
 
-            match = re.search(r'\d+', key)
+            match = re.search(r'\d+', key)    # 1. 이름에서 숫자 추출 (예: "size_5_1" -> "5")
             if not match:
                 print("FAIL: 키 파싱 실패")
                 failed += 1
                 fail_list.append((key, "키 파싱 실패"))
                 continue
 
-            n = int(match.group())
+            n = int(match.group())    # 추출한 문자열 "5"를 숫자 5로 변환
 
-            if f"cross_{n}" not in filters or f"x_{n}" not in filters:
+            if f"cross_{n}" not in filters or f"x_{n}" not in filters:    # 2. 해당 크기에 맞는 필터가 있는지 확인
                 print("FAIL: 필터 없음")
                 failed += 1
                 fail_list.append((key, "필터 없음"))
